@@ -109,6 +109,54 @@ export const ANOMALY_TYPE_LABELS: Record<HandoverItemAnomaly['anomalyType'], str
   other: '其他',
 };
 
+export type ExceptionStatus = 'pending' | 'processing' | 'resolved' | 'no_action' | 'closed';
+
+export type ExceptionResolution = 'reissue' | 'refund' | 'replacement' | 'other';
+
+export interface ExceptionRecord {
+  id: string;
+  handoverId: string;
+  batchId: string;
+  courseName: string;
+  batchNumber: string;
+  recordId?: string;
+  materialName?: string;
+  anomalyType: 'missing' | 'damaged' | 'wrong' | 'other';
+  reason: string;
+  responsiblePerson: string;
+  resolution: ExceptionResolution;
+  resolutionDetail: string;
+  expectedFinishDate: string;
+  actualFinishDate: string;
+  status: ExceptionStatus;
+  result: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const EXCEPTION_STATUS_LABELS: Record<ExceptionStatus, string> = {
+  pending: '待处理',
+  processing: '处理中',
+  resolved: '已补齐',
+  no_action: '无需处理',
+  closed: '已关闭',
+};
+
+export const EXCEPTION_RESOLUTION_LABELS: Record<ExceptionResolution, string> = {
+  reissue: '补发',
+  refund: '退款',
+  replacement: '换货',
+  other: '其他',
+};
+
+export type BatchRiskLevel = 'normal' | 'warning' | 'danger';
+
+export const BATCH_RISK_LABELS: Record<BatchRiskLevel, string> = {
+  normal: '正常',
+  warning: '关注',
+  danger: '高风险',
+};
+
 export const ROLE_LABELS: Record<UserRole, string> = {
   manager: '管理者',
   executor: '执行者',

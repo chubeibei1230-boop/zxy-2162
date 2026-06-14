@@ -9,11 +9,13 @@ import {
   Flag,
   Plus,
   Trash2,
+  FileWarning,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import {
   HANDOVER_STATUS_LABELS,
   ANOMALY_TYPE_LABELS,
+  EXCEPTION_STATUS_LABELS,
   HandoverItemAnomaly,
   HandoverStatus,
 } from '@/types';
@@ -38,6 +40,11 @@ export default function HandoverModal() {
     addHandoverAnomaly,
     removeHandoverAnomaly,
     currentRole,
+    exceptions,
+    setShowExceptionModal,
+    setActiveExceptionBatchId,
+    setActiveExceptionHandoverId,
+    getExceptionStats,
   } = useAppStore();
 
   const [view, setView] = useState<ModalView>('list');
@@ -144,6 +151,13 @@ export default function HandoverModal() {
     setAnomalyRecordId('');
     setAnomalyNote('');
     setAnomalyType('missing');
+  };
+
+  const handleOpenException = () => {
+    if (!selectedHandover) return;
+    setActiveExceptionHandoverId(selectedHandover.id);
+    setActiveExceptionBatchId(selectedHandover.batchId);
+    setShowExceptionModal(true);
   };
 
   const handleClose = () => {
@@ -548,6 +562,126 @@ export default function HandoverModal() {
                   </div>
                 </div>
               )}
+
+              {(() => {
+                const batchExceptions = exceptions.filter(
+                  (e) => e.handoverId === selectedHandover.id
+                );
+                const exceptionStats = getExceptionStats(selectedHandover.batchId);
+                const unresolved = exceptionStats.pending + exceptionStats.processing;
+                const closed = exceptionStats.resolved + exceptionStats.closed + exceptionStats.noAction;
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-navy-700 flex items-center gap-1">
+                        <FileWarning className="w-4 h-4 text-amber-600" />
+                        异常闭环处理
+                        <span className="ml-2 text-xs font-normal text-navy-500">
+                          共 {batchExceptions.length} 条
+                        </span>
+                      </h4>
+                      <button
+                        onClick={handleOpenException}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        管理异常单
+                      </button>
+                    </div>
+
+                    {batchExceptions.length === 0 ? (
+                      <div className="text-center py-6 text-navy-400 text-sm bg-navy-50/50 rounded-lg border border-dashed border-navy-200">
+                        暂无异常处理记录
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {batchExceptions.slice(0, 3).map((exc) => (
+                          <div
+                            key={exc.id}
+                            className="flex items-center gap-3 p-3 bg-navy-50/50 border border-navy-100 rounded-lg"
+                          >
+                            <div
+                              className={cn(
+                                'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                                exc.status === 'pending'
+                                  ? 'bg-navy-100'
+                                  : exc.status === 'processing'
+                                  ? 'bg-blue-100'
+                                  : exc.status === 'resolved'
+                                  ? 'bg-emerald-100'
+                                  : exc.status === 'closed'
+                                  ? 'bg-purple-100'
+                                  : 'bg-gray-100'
+                              )}
+                            >
+                              <FileWarning
+                                className={cn(
+                                  'w-4 h-4',
+                                  exc.status === 'pending'
+                                    ? 'text-navy-600'
+                                    : exc.status === 'processing'
+                                    ? 'text-blue-600'
+                                    : exc.status === 'resolved'
+                                    ? 'text-emerald-600'
+                                    : exc.status === 'closed'
+                                    ? 'text-purple-600'
+                                    : 'text-gray-600'
+                                )}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm text-navy-900">
+                                  {exc.materialName || '批次级异常'}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'text-xs px-1.5 py-0.5 rounded',
+                                    exc.status === 'pending'
+                                      ? 'bg-navy-100 text-navy-700'
+                                      : exc.status === 'processing'
+                                      ? 'bg-blue-100 text-blue-700'
+                                      : exc.status === 'resolved'
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : exc.status === 'closed'
+                                      ? 'bg-purple-100 text-purple-700'
+                                      : 'bg-gray-100 text-gray-700'
+                                  )}
+                                >
+                                  {EXCEPTION_STATUS_LABELS[exc.status]}
+                                </span>
+                              </div>
+                              <p className="text-xs text-navy-500 mt-0.5 line-clamp-1">
+                                {exc.reason}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        {batchExceptions.length > 3 && (
+                          <button
+                            onClick={handleOpenException}
+                            className="w-full text-center text-xs text-navy-500 hover:text-navy-700 py-1"
+                          >
+                            查看全部 {batchExceptions.length} 条异常处理记录 →
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {batchExceptions.length > 0 && (
+                      <div className="flex items-center gap-4 mt-3 text-xs">
+                        <span className="text-navy-500">
+                          待处理 <span className="font-medium text-amber-600">{unresolved}</span> 项
+                        </span>
+                        <span className="text-navy-500">
+                          已闭环 <span className="font-medium text-emerald-600">{closed}</span> 项
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {selectedHandover.signStatus !== 'completed' && !selectedHandover.completedTime && canSign && (
                 <div className="border border-navy-100 rounded-xl p-4 space-y-4">

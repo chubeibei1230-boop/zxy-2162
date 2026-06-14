@@ -10,9 +10,13 @@ import {
   HandoverRecord,
   HandoverStatus,
   HandoverItemAnomaly,
+  ExceptionRecord,
+  ExceptionStatus,
+  ExceptionResolution,
+  BatchRiskLevel,
 } from '@/types';
 import { generateId } from '@/utils/helpers';
-import { mockCourses, mockTemplates, mockRecords, mockHandovers } from '@/data/mockData';
+import { mockCourses, mockTemplates, mockRecords, mockHandovers, mockExceptions } from '@/data/mockData';
 
 const getHandoverStats = (
   records: PackageRecord[],
@@ -65,6 +69,7 @@ interface AppState {
   templates: MaterialTemplate[];
   records: PackageRecord[];
   handovers: HandoverRecord[];
+  exceptions: ExceptionRecord[];
   filters: Filters;
   currentRole: UserRole;
   expandedBatches: Record<string, boolean>;
@@ -73,8 +78,12 @@ interface AppState {
   showTemplateModal: boolean;
   showPreview: boolean;
   showHandoverModal: boolean;
+  showExceptionModal: boolean;
   editingRecordId: string | null;
   activeHandoverBatchId: string | null;
+  editingExceptionId: string | null;
+  activeExceptionHandoverId: string | null;
+  activeExceptionBatchId: string | null;
 
   setCurrentRole: (role: UserRole) => void;
   setFilters: (filters: Partial<Filters>) => void;
@@ -108,8 +117,12 @@ interface AppState {
   setShowTemplateModal: (show: boolean) => void;
   setShowPreview: (show: boolean) => void;
   setShowHandoverModal: (show: boolean) => void;
+  setShowExceptionModal: (show: boolean) => void;
   setEditingRecordId: (id: string | null) => void;
   setActiveHandoverBatchId: (id: string | null) => void;
+  setEditingExceptionId: (id: string | null) => void;
+  setActiveExceptionHandoverId: (id: string | null) => void;
+  setActiveExceptionBatchId: (id: string | null) => void;
 
   createHandover: (batchId: string, handoverPerson: string) => boolean;
   startHandoverSign: (handoverId: string, receiverPerson: string) => void;
@@ -120,6 +133,16 @@ interface AppState {
   updateHandoverAnomaly: (handoverId: string, recordId: string, anomaly: Partial<HandoverItemAnomaly>) => void;
   getHandoverByBatchId: (batchId: string) => HandoverRecord | undefined;
   getBatchHandoverStatus: (batchId: string) => HandoverStatus | null;
+
+  addException: (exception: Omit<ExceptionRecord, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateException: (id: string, exception: Partial<ExceptionRecord>) => void;
+  deleteException: (id: string) => void;
+  updateExceptionStatus: (id: string, status: ExceptionStatus, result?: string) => void;
+  getExceptionsByHandoverId: (handoverId: string) => ExceptionRecord[];
+  getExceptionsByBatchId: (batchId: string) => ExceptionRecord[];
+  getExceptionStats: (batchId: string) => { total: number; pending: number; processing: number; resolved: number; closed: number; noAction: number };
+  getBatchRiskLevel: (batchId: string) => BatchRiskLevel;
+  updateHandoverStatusFromExceptions: (batchId: string) => void;
 
   getFilteredRecords: () => PackageRecord[];
   getRecordsByBatch: () => Record<string, PackageRecord[]>;
@@ -141,6 +164,7 @@ export const useAppStore = create<AppState>()(
       templates: mockTemplates,
       records: mockRecords,
       handovers: mockHandovers,
+      exceptions: mockExceptions,
       filters: initialFilters,
       currentRole: 'manager',
       expandedBatches: {},
@@ -149,8 +173,12 @@ export const useAppStore = create<AppState>()(
       showTemplateModal: false,
       showPreview: false,
       showHandoverModal: false,
+      showExceptionModal: false,
       editingRecordId: null,
       activeHandoverBatchId: null,
+      editingExceptionId: null,
+      activeExceptionHandoverId: null,
+      activeExceptionBatchId: null,
 
       setCurrentRole: (role) => set({ currentRole: role }),
 
@@ -405,8 +433,12 @@ export const useAppStore = create<AppState>()(
       setShowTemplateModal: (show) => set({ showTemplateModal: show }),
       setShowPreview: (show) => set({ showPreview: show }),
       setShowHandoverModal: (show) => set({ showHandoverModal: show }),
+      setShowExceptionModal: (show) => set({ showExceptionModal: show }),
       setEditingRecordId: (id) => set({ editingRecordId: id }),
       setActiveHandoverBatchId: (id) => set({ activeHandoverBatchId: id }),
+      setEditingExceptionId: (id) => set({ editingExceptionId: id }),
+      setActiveExceptionHandoverId: (id) => set({ activeExceptionHandoverId: id }),
+      setActiveExceptionBatchId: (id) => set({ activeExceptionBatchId: id }),
 
       createHandover: (batchId, handoverPerson) => {
         const { courses, records, handovers } = get();
@@ -561,6 +593,136 @@ export const useAppStore = create<AppState>()(
         return handover ? handover.signStatus : null;
       },
 
+      addException: (exception) => {
+        const now = new Date().toISOString();
+        const newException: ExceptionRecord = {
+          ...exception,
+          id: generateId(),
+          createdAt: now,
+          updatedAt: now,
+        };
+        set((state) => {
+          const updatedExceptions = [...state.exceptions, newException];
+          return { exceptions: updatedExceptions };
+        });
+        get().updateHandoverStatusFromExceptions(exception.batchId);
+      },
+
+      updateException: (id, exception) => {
+        set((state) => {
+          const updatedExceptions = state.exceptions.map((e) =>
+            e.id === id ? { ...e, ...exception, updatedAt: new Date().toISOString() } : e
+          );
+          return { exceptions: updatedExceptions };
+        });
+        const exc = get().exceptions.find((e) => e.id === id);
+        if (exc) {
+          get().updateHandoverStatusFromExceptions(exc.batchId);
+        }
+      },
+
+      deleteException: (id) => {
+        const exc = get().exceptions.find((e) => e.id === id);
+        const batchId = exc?.batchId;
+        set((state) => ({
+          exceptions: state.exceptions.filter((e) => e.id !== id),
+        }));
+        if (batchId) {
+          get().updateHandoverStatusFromExceptions(batchId);
+        }
+      },
+
+      updateExceptionStatus: (id, status, result) => {
+        const now = new Date().toISOString();
+        set((state) => {
+          const updatedExceptions = state.exceptions.map((e) => {
+            if (e.id !== id) return e;
+            const isFinished = status === 'resolved' || status === 'closed' || status === 'no_action';
+            return {
+              ...e,
+              status,
+              result: result ?? e.result,
+              actualFinishDate: isFinished ? now : e.actualFinishDate,
+              updatedAt: now,
+            };
+          });
+          return { exceptions: updatedExceptions };
+        });
+        const exc = get().exceptions.find((e) => e.id === id);
+        if (exc) {
+          get().updateHandoverStatusFromExceptions(exc.batchId);
+        }
+      },
+
+      getExceptionsByHandoverId: (handoverId) => {
+        return get().exceptions.filter((e) => e.handoverId === handoverId);
+      },
+
+      getExceptionsByBatchId: (batchId) => {
+        return get().exceptions.filter((e) => e.batchId === batchId);
+      },
+
+      getExceptionStats: (batchId) => {
+        const exceptions = get().exceptions.filter((e) => e.batchId === batchId);
+        return {
+          total: exceptions.length,
+          pending: exceptions.filter((e) => e.status === 'pending').length,
+          processing: exceptions.filter((e) => e.status === 'processing').length,
+          resolved: exceptions.filter((e) => e.status === 'resolved').length,
+          closed: exceptions.filter((e) => e.status === 'closed').length,
+          noAction: exceptions.filter((e) => e.status === 'no_action').length,
+        };
+      },
+
+      getBatchRiskLevel: (batchId) => {
+        const stats = get().getExceptionStats(batchId);
+        if (stats.total === 0) return 'normal';
+        const unresolved = stats.pending + stats.processing;
+        if (unresolved >= 3 || stats.pending >= 2) return 'danger';
+        if (unresolved > 0) return 'warning';
+        return 'normal';
+      },
+
+      updateHandoverStatusFromExceptions: (batchId) => {
+        const { handovers, exceptions } = get();
+        const handover = handovers.find((h) => h.batchId === batchId);
+        if (!handover) return;
+        if (handover.signStatus === 'pending' || handover.signStatus === 'in_progress') return;
+
+        const batchExceptions = exceptions.filter((e) => e.batchId === batchId);
+        const unresolvedCount = batchExceptions.filter(
+          (e) => e.status === 'pending' || e.status === 'processing'
+        ).length;
+
+        const hasUnresolvedAnomalies = handover.anomalies.length > 0 &&
+          !handover.anomalies.every((a) =>
+            batchExceptions.some(
+              (e) => e.recordId === a.recordId &&
+                (e.status === 'resolved' || e.status === 'closed' || e.status === 'no_action')
+            )
+          );
+
+        const shouldBeException = unresolvedCount > 0 || hasUnresolvedAnomalies;
+
+        if (shouldBeException && handover.signStatus !== 'exception') {
+          set((state) => ({
+            handovers: state.handovers.map((h) =>
+              h.id === handover.id
+                ? { ...h, signStatus: 'exception' as HandoverStatus, updatedAt: new Date().toISOString() }
+                : h
+            ),
+          }));
+        } else if (!shouldBeException && handover.signStatus === 'exception' && handover.completedTime) {
+          set((state) => ({
+            handovers: state.handovers.map((h) =>
+              h.id === handover.id
+                ? { ...h, signStatus: 'completed' as HandoverStatus, updatedAt: new Date().toISOString() }
+                : h
+            ),
+          }));
+        }
+      },
+
       getFilteredRecords: () => {
         const { records, filters, handovers } = get();
         return records.filter((r) => {
@@ -615,6 +777,7 @@ export const useAppStore = create<AppState>()(
         templates: state.templates,
         records: state.records,
         handovers: state.handovers,
+        exceptions: state.exceptions,
         filters: state.filters,
         currentRole: state.currentRole,
         expandedBatches: state.expandedBatches,

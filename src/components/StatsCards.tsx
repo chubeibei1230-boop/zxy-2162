@@ -1,8 +1,8 @@
-import { FileText, AlertTriangle, CheckCircle, Clock, ClipboardCheck } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle, Clock, ClipboardCheck, FileWarning, ShieldCheck } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function StatsCards() {
-  const { getFilteredRecords, handovers } = useAppStore();
+  const { getFilteredRecords, handovers, exceptions } = useAppStore();
   const records = getFilteredRecords();
 
   const total = records.length;
@@ -24,6 +24,17 @@ export default function StatsCards() {
   }).length;
   const handoverRate = batchIdsFromRecords.length > 0
     ? Math.round((completedBatches / batchIdsFromRecords.length) * 100)
+    : 0;
+
+  const totalExceptions = exceptions.length;
+  const pendingExceptions = exceptions.filter((e) => e.status === 'pending').length;
+  const processingExceptions = exceptions.filter((e) => e.status === 'processing').length;
+  const unresolvedExceptions = pendingExceptions + processingExceptions;
+  const closedExceptions = exceptions.filter(
+    (e) => e.status === 'resolved' || e.status === 'closed' || e.status === 'no_action'
+  ).length;
+  const closeRate = totalExceptions > 0
+    ? Math.round((closedExceptions / totalExceptions) * 100)
     : 0;
 
   const stats = [
@@ -78,10 +89,28 @@ export default function StatsCards() {
       borderColor: 'border-amber-100',
       subtext: pendingSignBatches > 0 ? `${pendingSignBatches} 批次待签收` : undefined,
     },
+    {
+      label: '异常总数',
+      value: totalExceptions,
+      icon: FileWarning,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-100',
+      subtext: `待处理 ${unresolvedExceptions} 条`,
+    },
+    {
+      label: '已闭环异常',
+      value: closedExceptions,
+      icon: ShieldCheck,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-100',
+      subtext: `闭环率 ${closeRate}%`,
+    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
       {stats.map((stat, index) => (
         <div
           key={index}

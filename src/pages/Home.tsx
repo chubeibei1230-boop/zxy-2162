@@ -7,6 +7,7 @@ import BatchModal from '@/components/BatchModal';
 import TemplateModal from '@/components/TemplateModal';
 import PreviewModal from '@/components/PreviewModal';
 import HandoverModal from '@/components/HandoverModal';
+import ExceptionModal from '@/components/ExceptionModal';
 
 export default function Home() {
   return (
@@ -24,6 +25,7 @@ export default function Home() {
       <TemplateModal />
       <PreviewModal />
       <HandoverModal />
+      <ExceptionModal />
     </div>
   );
 }

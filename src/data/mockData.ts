@@ -1,4 +1,4 @@
-import { CourseBatch, MaterialTemplate, PackageRecord, HandoverRecord } from '@/types';
+import { CourseBatch, MaterialTemplate, PackageRecord, HandoverRecord, ExceptionRecord } from '@/types';
 
 export const mockCourses: CourseBatch[] = [
   {
@@ -309,5 +309,48 @@ export const mockHandovers: HandoverRecord[] = [
     completedTime: '',
     createdAt: '2024-03-05T14:00:00Z',
     updatedAt: '2024-03-05T16:00:00Z',
+  },
+];
+
+export const mockExceptions: ExceptionRecord[] = [
+  {
+    id: 'e1',
+    handoverId: 'h3',
+    batchId: 'c3',
+    courseName: '销售技能进阶',
+    batchNumber: '2024-SALES-001',
+    recordId: 'r9',
+    materialName: '销售技巧手册',
+    anomalyType: 'missing',
+    reason: '印刷厂少印2本，库存不足',
+    responsiblePerson: '赵六',
+    resolution: 'reissue',
+    resolutionDetail: '联系印刷厂加急补印2本',
+    expectedFinishDate: '2024-03-10T18:00:00Z',
+    actualFinishDate: '',
+    status: 'processing',
+    result: '',
+    createdAt: '2024-03-05T16:30:00Z',
+    updatedAt: '2024-03-06T10:00:00Z',
+  },
+  {
+    id: 'e2',
+    handoverId: 'h1',
+    batchId: 'c1',
+    courseName: '新员工入职培训',
+    batchNumber: '2024-Q1-001',
+    recordId: 'r2',
+    materialName: '培训讲义',
+    anomalyType: 'damaged',
+    reason: '运输途中3本讲义封面磨损',
+    responsiblePerson: '张三',
+    resolution: 'reissue',
+    resolutionDetail: '从备用库存中补发3本',
+    expectedFinishDate: '2024-01-20T12:00:00Z',
+    actualFinishDate: '2024-01-19T15:30:00Z',
+    status: 'resolved',
+    result: '已成功补发3本完好讲义，接收方确认无误',
+    createdAt: '2024-01-18T11:00:00Z',
+    updatedAt: '2024-01-19T15:30:00Z',
   },
 ];

@@ -1,9 +1,9 @@
-import { ChevronDown, ChevronRight, Plus, Layers, FileText, ClipboardCheck, CheckCircle, AlertTriangle, Clock, Play } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Layers, FileText, ClipboardCheck, CheckCircle, AlertTriangle, Clock, Play, ShieldAlert, Shield, ShieldCheck } from 'lucide-react';
 import { Fragment } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import RecordRow from './RecordRow';
 import { cn } from '@/lib/utils';
-import { PackageRecord, HANDOVER_STATUS_LABELS } from '@/types';
+import { PackageRecord, HANDOVER_STATUS_LABELS, BATCH_RISK_LABELS, BatchRiskLevel } from '@/types';
 
 export default function RecordTable() {
   const {
@@ -21,6 +21,11 @@ export default function RecordTable() {
     handovers,
     setShowHandoverModal,
     setActiveHandoverBatchId,
+    setShowExceptionModal,
+    setActiveExceptionBatchId,
+    setActiveExceptionHandoverId,
+    getExceptionStats,
+    getBatchRiskLevel,
   } = useAppStore();
 
   const recordsByBatch = getRecordsByBatch();
@@ -69,6 +74,20 @@ export default function RecordTable() {
     in_progress: { icon: Play, color: 'text-blue-600', bg: 'bg-blue-50' },
     completed: { icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     exception: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
+  };
+
+  const riskLevelConfig: Record<BatchRiskLevel, { icon: typeof Shield; color: string; bg: string }> = {
+    normal: { icon: ShieldCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    warning: { icon: ShieldAlert, color: 'text-amber-600', bg: 'bg-amber-50' },
+    danger: { icon: ShieldAlert, color: 'text-danger', bg: 'bg-rose-50' },
+  };
+
+  const handleOpenException = (batchId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const handover = handovers.find((h) => h.batchId === batchId);
+    setActiveExceptionBatchId(batchId);
+    setActiveExceptionHandoverId(handover?.id || null);
+    setShowExceptionModal(true);
   };
 
   const handleOpenHandover = (batchId: string, e: React.MouseEvent) => {
@@ -160,6 +179,12 @@ export default function RecordTable() {
               const hStatus = handover?.signStatus;
               const hConfig = hStatus ? handoverStatusConfig[hStatus] : null;
               const HIcon = hConfig?.icon;
+              const exceptionStats = getExceptionStats(batchId);
+              const riskLevel = getBatchRiskLevel(batchId);
+              const riskConfig = riskLevelConfig[riskLevel];
+              const RiskIcon = riskConfig.icon;
+              const unresolvedExceptions = exceptionStats.pending + exceptionStats.processing;
+              const closedExceptions = exceptionStats.resolved + exceptionStats.closed + exceptionStats.noAction;
 
               return (
                 <Fragment key={batchId}>
@@ -198,6 +223,19 @@ export default function RecordTable() {
                               {HANDOVER_STATUS_LABELS[hStatus]}
                             </button>
                           )}
+                          {exceptionStats.total > 0 && (
+                            <button
+                              onClick={(e) => handleOpenException(batchId, e)}
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
+                                riskConfig.bg,
+                                riskConfig.color
+                              )}
+                            >
+                              <RiskIcon className="w-3 h-3" />
+                              {BATCH_RISK_LABELS[riskLevel]}
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <span className="text-navy-600">
@@ -212,6 +250,24 @@ export default function RecordTable() {
                           <span className="text-navy-500">
                             待复核 <span className="font-medium">{stats.pending}</span>
                           </span>
+                          {exceptionStats.total > 0 && (
+                            <button
+                              onClick={(e) => handleOpenException(batchId, e)}
+                              className="text-amber-600 hover:text-amber-700 hover:underline"
+                            >
+                              异常 <span className="font-medium">{exceptionStats.total}</span>
+                              {unresolvedExceptions > 0 && (
+                                <span className="text-danger">
+                                  （待处理 {unresolvedExceptions}）
+                                </span>
+                              )}
+                            </button>
+                          )}
+                          {closedExceptions > 0 && (
+                            <span className="text-emerald-600">
+                              已闭环 <span className="font-medium">{closedExceptions}</span>
+                            </span>
+                          )}
                           {!hStatus && currentRole === 'manager' && (
                             <button
                               onClick={(e) => handleOpenHandover(batchId, e)}
