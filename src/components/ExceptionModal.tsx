@@ -136,10 +136,19 @@ export default function ExceptionModal() {
       alert('请填写异常原因和责任人');
       return;
     }
-    if (formData.expectedFinishDate) {
-      const date = new Date(formData.expectedFinishDate);
-      if (isNaN(date.getTime())) {
-        alert('请填写有效的预计完成时间');
+    if (!formData.expectedFinishDate) {
+      alert('请填写预计完成时间');
+      return;
+    }
+    const date = new Date(formData.expectedFinishDate);
+    if (isNaN(date.getTime())) {
+      alert('请填写有效的预计完成时间');
+      return;
+    }
+
+    if (formData.status === 'resolved' || formData.status === 'closed' || formData.status === 'no_action') {
+      if (!formData.result?.trim()) {
+        alert('请填写处理结果');
         return;
       }
     }
@@ -166,11 +175,16 @@ export default function ExceptionModal() {
 
   const handleStatusChange = (status: ExceptionStatus) => {
     if (!editingExceptionId) return;
-    let result = '';
     if (status === 'resolved' || status === 'closed' || status === 'no_action') {
-      result = prompt('请填写处理结果：') || '';
+      const result = prompt('请填写处理结果：');
+      if (!result?.trim()) {
+        alert('请填写有效的处理结果');
+        return;
+      }
+      updateExceptionStatus(editingExceptionId, status, result.trim());
+    } else {
+      updateExceptionStatus(editingExceptionId, status);
     }
-    updateExceptionStatus(editingExceptionId, status, result);
     const updated = exceptions.find((e) => e.id === editingExceptionId);
     if (updated) {
       setFormData(updated);

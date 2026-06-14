@@ -40,11 +40,11 @@ export default function HandoverModal() {
     addHandoverAnomaly,
     removeHandoverAnomaly,
     currentRole,
-    exceptions,
     setShowExceptionModal,
     setActiveExceptionBatchId,
     setActiveExceptionHandoverId,
     getExceptionStats,
+    getExceptionsByBatchId,
   } = useAppStore();
 
   const [view, setView] = useState<ModalView>('list');
@@ -564,9 +564,7 @@ export default function HandoverModal() {
               )}
 
               {(() => {
-                const batchExceptions = exceptions.filter(
-                  (e) => e.handoverId === selectedHandover.id
-                );
+                const batchExceptions = getExceptionsByBatchId(selectedHandover.batchId);
                 const exceptionStats = getExceptionStats(selectedHandover.batchId);
                 const unresolved = exceptionStats.pending + exceptionStats.processing;
                 const closed = exceptionStats.resolved + exceptionStats.closed + exceptionStats.noAction;

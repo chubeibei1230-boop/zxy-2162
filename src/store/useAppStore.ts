@@ -694,15 +694,7 @@ export const useAppStore = create<AppState>()(
           (e) => e.status === 'pending' || e.status === 'processing'
         ).length;
 
-        const hasUnresolvedAnomalies = handover.anomalies.length > 0 &&
-          !handover.anomalies.every((a) =>
-            batchExceptions.some(
-              (e) => e.recordId === a.recordId &&
-                (e.status === 'resolved' || e.status === 'closed' || e.status === 'no_action')
-            )
-          );
-
-        const shouldBeException = unresolvedCount > 0 || hasUnresolvedAnomalies;
+        const shouldBeException = unresolvedCount > 0;
 
         if (shouldBeException && handover.signStatus !== 'exception') {
           set((state) => ({
@@ -712,7 +704,7 @@ export const useAppStore = create<AppState>()(
                 : h
             ),
           }));
-        } else if (!shouldBeException && handover.signStatus === 'exception' && handover.completedTime) {
+        } else if (!shouldBeException && handover.signStatus === 'exception') {
           set((state) => ({
             handovers: state.handovers.map((h) =>
               h.id === handover.id
