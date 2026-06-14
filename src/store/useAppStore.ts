@@ -12,8 +12,8 @@ import {
   HandoverItemAnomaly,
   ExceptionRecord,
   ExceptionStatus,
-  ExceptionResolution,
   BatchRiskLevel,
+  BatchRiskDetail,
 } from '@/types';
 import { generateId } from '@/utils/helpers';
 import { mockCourses, mockTemplates, mockRecords, mockHandovers, mockExceptions } from '@/data/mockData';
@@ -143,6 +143,10 @@ interface AppState {
   getExceptionStats: (batchId: string) => { total: number; pending: number; processing: number; resolved: number; closed: number; noAction: number };
   getBatchRiskLevel: (batchId: string) => BatchRiskLevel;
   updateHandoverStatusFromExceptions: (batchId: string) => void;
+  getBatchRiskDetail: (batchId: string) => BatchRiskDetail;
+  getAllBatchRiskDetails: () => BatchRiskDetail[];
+  getRiskStats: () => { normal: number; warning: number; danger: number; total: number };
+  getFilteredBatchRiskDetails: () => BatchRiskDetail[];
 
   getFilteredRecords: () => PackageRecord[];
   getRecordsByBatch: () => Record<string, PackageRecord[]>;
@@ -155,6 +159,7 @@ const initialFilters: Filters = {
   responsiblePerson: '',
   hasDeficiency: '',
   handoverStatus: '',
+  riskLevel: '',
 };
 
 export const useAppStore = create<AppState>()(
@@ -675,12 +680,171 @@ export const useAppStore = create<AppState>()(
       },
 
       getBatchRiskLevel: (batchId) => {
-        const stats = get().getExceptionStats(batchId);
-        if (stats.total === 0) return 'normal';
-        const unresolved = stats.pending + stats.processing;
-        if (unresolved >= 3 || stats.pending >= 2) return 'danger';
-        if (unresolved > 0) return 'warning';
+        const { records, handovers } = get();
+        const batchRecords = records.filter((r) => r.batchId === batchId);
+        if (batchRecords.length === 0) return 'normal';
+
+        let dangerScore = 0;
+        let warningScore = 0;
+        const riskFactors: string[] = [];
+
+        const pendingReview = batchRecords.filter((r) => r.reviewStatus === 'pending').length;
+        const deficiencyCount = batchRecords.filter((r) => r.hasDeficiency).length;
+        const packageCompletionRate = batchRecords.length > 0
+          ? batchRecords.filter((r) => r.actualQuantity >= r.packageQuantity).length / batchRecords.length
+          : 1;
+
+        if (packageCompletionRate < 0.8) {
+          dangerScore += 2;
+          riskFactors.push('分装完成度过低');
+        } else if (packageCompletionRate < 1) {
+          warningScore += 1;
+          riskFactors.push('部分资料未完成分装');
+        }
+
+        if (pendingReview >= 3) {
+          dangerScore += 1;
+          riskFactors.push('大量资料待复核');
+        } else if (pendingReview > 0) {
+          warningScore += 1;
+        }
+
+        if (deficiencyCount >= 3) {
+          dangerScore += 2;
+          riskFactors.push('缺漏资料数量较多');
+        } else if (deficiencyCount >= 2) {
+          dangerScore += 1;
+          riskFactors.push('存在多项缺漏');
+        } else if (deficiencyCount > 0) {
+          warningScore += 1;
+          riskFactors.push('存在缺漏资料');
+        }
+
+        const handover = handovers.find((h) => h.batchId === batchId);
+        if (handover?.signStatus === 'exception') {
+          dangerScore += 1;
+          riskFactors.push('签收异常未解决');
+        } else if (handover?.signStatus === 'pending' || handover?.signStatus === 'in_progress') {
+          const handoverAge = Date.now() - new Date(handover.createdAt).getTime();
+          if (handoverAge > 3 * 24 * 60 * 60 * 1000) {
+            warningScore += 1;
+            riskFactors.push('签收流程超时');
+          }
+        }
+
+        const exStats = get().getExceptionStats(batchId);
+        const unresolved = exStats.pending + exStats.processing;
+        if (unresolved >= 3) {
+          dangerScore += 2;
+          riskFactors.push('多个异常单未闭环');
+        } else if (exStats.pending >= 2) {
+          dangerScore += 1;
+          riskFactors.push('待处理异常单较多');
+        } else if (unresolved > 0) {
+          warningScore += 1;
+          riskFactors.push('存在未闭环异常');
+        }
+
+        if (dangerScore >= 2) return 'danger';
+        if (dangerScore >= 1 || warningScore >= 2) return 'warning';
+        if (warningScore >= 1) return 'warning';
         return 'normal';
+      },
+
+      getBatchRiskDetail: (batchId) => {
+        const { records, handovers, courses } = get();
+        const batch = courses.find((c) => c.id === batchId);
+        const batchRecords = records.filter((r) => r.batchId === batchId);
+        const handover = handovers.find((h) => h.batchId === batchId);
+        const exStats = get().getExceptionStats(batchId);
+
+        const totalRecords = batchRecords.length;
+        const packageCompletion = batchRecords.filter(
+          (r) => r.actualQuantity >= r.packageQuantity
+        ).length;
+        const packageCompletionRate = totalRecords > 0
+          ? Math.round((packageCompletion / totalRecords) * 100)
+          : 0;
+        const pendingReview = batchRecords.filter((r) => r.reviewStatus === 'pending').length;
+        const deficiencyCount = batchRecords.filter((r) => r.hasDeficiency).length;
+        const unresolved = exStats.pending + exStats.processing;
+        const closedCount = exStats.resolved + exStats.closed + exStats.noAction;
+        const exceptionProgress = exStats.total > 0
+          ? Math.round((closedCount / exStats.total) * 100)
+          : 100;
+        const riskLevel = get().getBatchRiskLevel(batchId);
+
+        const riskFactors: string[] = [];
+        if (packageCompletionRate < 100) riskFactors.push('分装未全部完成');
+        if (pendingReview > 0) riskFactors.push(`${pendingReview}项待复核`);
+        if (deficiencyCount > 0) riskFactors.push(`${deficiencyCount}项缺漏`);
+        if (handover?.signStatus === 'exception') riskFactors.push('签收异常');
+        if (!handover) riskFactors.push('未发起交接');
+        if (unresolved > 0) riskFactors.push(`${unresolved}个异常待处理`);
+
+        return {
+          batchId,
+          courseName: batch?.courseName || '未知课程',
+          batchNumber: batch?.batchNumber || '-',
+          packageCompletion,
+          packageCompletionRate,
+          totalRecords,
+          pendingReview,
+          deficiencyCount,
+          handoverStatus: handover?.signStatus || null,
+          exceptionStats: {
+            ...exStats,
+            unresolved,
+            closedCount,
+          },
+          exceptionProgress,
+          riskLevel,
+          riskFactors,
+          createdAt: batch?.createdAt || new Date().toISOString(),
+        };
+      },
+
+      getAllBatchRiskDetails: () => {
+        const { courses } = get();
+        return courses.map((c) => get().getBatchRiskDetail(c.id));
+      },
+
+      getRiskStats: () => {
+        const details = get().getAllBatchRiskDetails();
+        return {
+          total: details.length,
+          normal: details.filter((d) => d.riskLevel === 'normal').length,
+          warning: details.filter((d) => d.riskLevel === 'warning').length,
+          danger: details.filter((d) => d.riskLevel === 'danger').length,
+        };
+      },
+
+      getFilteredBatchRiskDetails: () => {
+        const { filters } = get();
+        let details = get().getAllBatchRiskDetails();
+
+        if (filters.courseName) {
+          details = details.filter((d) => d.courseName === filters.courseName);
+        }
+        if (filters.riskLevel) {
+          details = details.filter((d) => d.riskLevel === filters.riskLevel);
+        }
+        if (filters.handoverStatus) {
+          if (filters.handoverStatus === 'none') {
+            details = details.filter((d) => d.handoverStatus === null);
+          } else {
+            details = details.filter((d) => d.handoverStatus === filters.handoverStatus);
+          }
+        }
+
+        details.sort((a, b) => {
+          const priority = { danger: 0, warning: 1, normal: 2 };
+          const levelDiff = priority[a.riskLevel] - priority[b.riskLevel];
+          if (levelDiff !== 0) return levelDiff;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        return details;
       },
 
       updateHandoverStatusFromExceptions: (batchId) => {
@@ -743,6 +907,12 @@ export const useAppStore = create<AppState>()(
             const handover = handovers.find((h) => h.batchId === r.batchId);
             const batchStatus = handover ? handover.signStatus : 'none';
             if (filters.handoverStatus !== batchStatus) {
+              return false;
+            }
+          }
+          if (filters.riskLevel) {
+            const batchRiskLevel = get().getBatchRiskLevel(r.batchId);
+            if (batchRiskLevel !== filters.riskLevel) {
               return false;
             }
           }

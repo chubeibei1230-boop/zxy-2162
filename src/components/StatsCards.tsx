@@ -1,13 +1,13 @@
-import { FileText, AlertTriangle, CheckCircle, Clock, ClipboardCheck, FileWarning, ShieldCheck } from 'lucide-react';
+import { FileText, AlertTriangle, Clock, ClipboardCheck, FileWarning, ShieldCheck, ShieldAlert, Layers } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function StatsCards() {
-  const { getFilteredRecords, handovers, exceptions } = useAppStore();
+  const { getFilteredRecords, handovers, exceptions, getRiskStats } = useAppStore();
   const records = getFilteredRecords();
+  const riskStats = getRiskStats();
 
   const total = records.length;
   const deficiencyCount = records.filter((r) => r.hasDeficiency).length;
-  const passedCount = records.filter((r) => r.reviewStatus === 'passed').length;
   const pendingCount = records.filter((r) => r.reviewStatus === 'pending').length;
   const reviewRate = total > 0 ? Math.round(((total - pendingCount) / total) * 100) : 0;
 
@@ -39,7 +39,43 @@ export default function StatsCards() {
 
   const stats = [
     {
-      label: '总记录数',
+      label: '总批次',
+      value: riskStats.total,
+      icon: Layers,
+      color: 'text-primary-600',
+      bgColor: 'bg-primary-50',
+      borderColor: 'border-primary-100',
+      subtext: batchIdsFromRecords.length > 0 ? `${batchIdsFromRecords.length} 个活跃批次` : undefined,
+    },
+    {
+      label: '高风险批次',
+      value: riskStats.danger,
+      icon: ShieldAlert,
+      color: 'text-danger',
+      bgColor: 'bg-rose-50',
+      borderColor: 'border-rose-100',
+      subtext: riskStats.danger > 0 ? '需优先处理' : undefined,
+    },
+    {
+      label: '关注批次',
+      value: riskStats.warning,
+      icon: ShieldAlert,
+      color: 'text-warning',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-100',
+      subtext: riskStats.warning > 0 ? '建议关注' : undefined,
+    },
+    {
+      label: '正常批次',
+      value: riskStats.normal,
+      icon: ShieldCheck,
+      color: 'text-success',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-100',
+      subtext: riskStats.total > 0 ? `占比 ${riskStats.total > 0 ? Math.round((riskStats.normal / riskStats.total) * 100) : 0}%` : undefined,
+    },
+    {
+      label: '分装记录数',
       value: total,
       icon: FileText,
       color: 'text-primary-600',
@@ -55,15 +91,7 @@ export default function StatsCards() {
       borderColor: 'border-amber-100',
     },
     {
-      label: '已通过',
-      value: passedCount,
-      icon: CheckCircle,
-      color: 'text-success',
-      bgColor: 'bg-emerald-50',
-      borderColor: 'border-emerald-100',
-    },
-    {
-      label: '已复核比例',
+      label: '复核完成率',
       value: `${reviewRate}%`,
       icon: Clock,
       color: 'text-navy-600',

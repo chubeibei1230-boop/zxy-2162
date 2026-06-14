@@ -37,7 +37,6 @@ export default function ExceptionModal() {
     showExceptionModal,
     setShowExceptionModal,
     exceptions,
-    handovers,
     records,
     courses,
     activeExceptionBatchId,
@@ -60,7 +59,6 @@ export default function ExceptionModal() {
   const handoverId = activeExceptionHandoverId || '';
 
   const batch = courses.find((c) => c.id === batchId);
-  const handover = handovers.find((h) => h.id === handoverId);
   const batchExceptions = exceptions.filter((e) => e.batchId === batchId);
   const selectedException = editingExceptionId
     ? exceptions.find((e) => e.id === editingExceptionId)
@@ -102,7 +100,6 @@ export default function ExceptionModal() {
   };
 
   const handleStartCreate = () => {
-    const now = new Date().toISOString();
     setFormData({
       handoverId: handoverId,
       batchId: batchId,

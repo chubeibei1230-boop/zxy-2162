@@ -186,11 +186,21 @@ export default function RecordTable() {
               const unresolvedExceptions = exceptionStats.pending + exceptionStats.processing;
               const closedExceptions = exceptionStats.resolved + exceptionStats.closed + exceptionStats.noAction;
 
+              const isDangerBatch = riskLevel === 'danger';
+              const isWarningBatch = riskLevel === 'warning';
+
               return (
                 <Fragment key={batchId}>
                   <tr
                     key={`header-${batchId}`}
-                    className="bg-primary-50/60 cursor-pointer hover:bg-primary-50 transition-colors"
+                    className={cn(
+                      'cursor-pointer transition-colors relative',
+                      isDangerBatch
+                        ? 'bg-rose-50/80 hover:bg-rose-50 border-l-4 border-l-rose-500'
+                        : isWarningBatch
+                        ? 'bg-amber-50/80 hover:bg-amber-50 border-l-4 border-l-amber-500'
+                        : 'bg-primary-50/60 hover:bg-primary-50'
+                    )}
                     onClick={() => toggleBatchExpand(batchId)}
                   >
                     <td colSpan={11} className="px-3 py-3">
@@ -227,14 +237,35 @@ export default function RecordTable() {
                             <button
                               onClick={(e) => handleOpenException(batchId, e)}
                               className={cn(
-                                'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
-                                riskConfig.bg,
-                                riskConfig.color
+                                'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full',
+                                isDangerBatch
+                                  ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-200 animate-pulse'
+                                  : isWarningBatch
+                                  ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                                  : cn(riskConfig.bg, riskConfig.color)
                               )}
                             >
                               <RiskIcon className="w-3 h-3" />
                               {BATCH_RISK_LABELS[riskLevel]}
+                              {isDangerBatch && unresolvedExceptions > 0 && (
+                                <span className="ml-0.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-rose-500 rounded-full">
+                                  {unresolvedExceptions}
+                                </span>
+                              )}
                             </button>
+                          )}
+                          {exceptionStats.total === 0 && riskLevel !== 'normal' && (
+                            <span
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full',
+                                isDangerBatch
+                                  ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
+                                  : 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                              )}
+                            >
+                              <RiskIcon className="w-3 h-3" />
+                              {BATCH_RISK_LABELS[riskLevel]}
+                            </span>
                           )}
                         </div>
                         <div className="flex items-center gap-4 text-sm">

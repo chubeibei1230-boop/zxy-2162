@@ -73,6 +73,7 @@ export interface Filters {
   responsiblePerson: string;
   hasDeficiency: string;
   handoverStatus: string;
+  riskLevel: string;
 }
 
 export interface ValidationIssue {
@@ -162,3 +163,29 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   executor: '执行者',
   reviewer: '复核者',
 };
+
+export interface BatchRiskDetail {
+  batchId: string;
+  courseName: string;
+  batchNumber: string;
+  packageCompletion: number;
+  packageCompletionRate: number;
+  totalRecords: number;
+  pendingReview: number;
+  deficiencyCount: number;
+  handoverStatus: HandoverStatus | null;
+  exceptionStats: {
+    total: number;
+    pending: number;
+    processing: number;
+    resolved: number;
+    closed: number;
+    noAction: number;
+    unresolved: number;
+    closedCount: number;
+  };
+  exceptionProgress: number;
+  riskLevel: BatchRiskLevel;
+  riskFactors: string[];
+  createdAt: string;
+}
