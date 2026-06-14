@@ -2,7 +2,7 @@ import { FileText, AlertTriangle, CheckCircle, Clock, ClipboardCheck } from 'luc
 import { useAppStore } from '@/store/useAppStore';
 
 export default function StatsCards() {
-  const { getFilteredRecords, handovers, courses } = useAppStore();
+  const { getFilteredRecords, handovers } = useAppStore();
   const records = getFilteredRecords();
 
   const total = records.length;
@@ -22,9 +22,6 @@ export default function StatsCards() {
     const h = handovers.find((hv) => hv.batchId === bid);
     return h && (h.signStatus === 'pending' || h.signStatus === 'in_progress');
   }).length;
-  const noHandoverBatches = batchIdsFromRecords.filter((bid) =>
-    !handovers.some((h) => h.batchId === bid)
-  ).length;
   const handoverRate = batchIdsFromRecords.length > 0
     ? Math.round((completedBatches / batchIdsFromRecords.length) * 100)
     : 0;

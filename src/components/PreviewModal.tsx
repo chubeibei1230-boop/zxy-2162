@@ -1,6 +1,6 @@
-import { X, Printer, Download, FileText, CheckCircle, AlertTriangle, Clock, ClipboardCheck } from 'lucide-react';
+import { X, Printer, FileText, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import { CATEGORY_LABELS, REVIEW_STATUS_LABELS, HANDOVER_STATUS_LABELS } from '@/types';
+import { CATEGORY_LABELS, REVIEW_STATUS_LABELS, HANDOVER_STATUS_LABELS, ANOMALY_TYPE_LABELS } from '@/types';
 import { formatDate, formatDateTime } from '@/utils/helpers';
 
 export default function PreviewModal() {
@@ -12,9 +12,7 @@ export default function PreviewModal() {
   const allRecords = getFilteredRecords();
 
   const totalPackages = allRecords.reduce((sum, r) => sum + r.packageQuantity, 0);
-  const totalActual = allRecords.reduce((sum, r) => sum + r.actualQuantity, 0);
   const deficiencyCount = allRecords.filter((r) => r.hasDeficiency).length;
-  const passedCount = allRecords.filter((r) => r.reviewStatus === 'passed').length;
   const pendingCount = allRecords.filter((r) => r.reviewStatus === 'pending').length;
   const reviewRate = allRecords.length > 0
     ? Math.round(((allRecords.length - pendingCount) / allRecords.length) * 100)
@@ -26,14 +24,6 @@ export default function PreviewModal() {
   const exceptionBatches = batchIds.filter((bid) =>
     handovers.some((h) => h.batchId === bid && h.signStatus === 'exception')
   ).length;
-  const pendingSignBatches = batchIds.filter((bid) => {
-    const h = handovers.find((hv) => hv.batchId === bid);
-    return h && (h.signStatus === 'pending' || h.signStatus === 'in_progress');
-  }).length;
-  const noHandoverBatches = batchIds.filter((bid) =>
-    !handovers.some((h) => h.batchId === bid)
-  ).length;
-
   const handlePrint = () => {
     window.print();
   };
@@ -173,6 +163,11 @@ export default function PreviewModal() {
                         {handover.exceptionNote && (
                           <div className="col-span-3 text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
                             异常说明：{handover.exceptionNote}
+                          </div>
+                        )}
+                        {handover.anomalies.length > 0 && (
+                          <div className="col-span-3 text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                            异常资料：{handover.anomalies.map((a) => `${a.materialName}（${ANOMALY_TYPE_LABELS[a.anomalyType]}：${a.note}）`).join('；')}
                           </div>
                         )}
                       </div>

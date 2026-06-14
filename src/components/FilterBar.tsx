@@ -3,7 +3,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { CATEGORY_LABELS, REVIEW_STATUS_LABELS, HANDOVER_STATUS_LABELS } from '@/types';
 
 export default function FilterBar() {
-  const { filters, setFilters, resetFilters, records, courses, expandAllBatches, collapseAllBatches, handovers } =
+  const { filters, setFilters, resetFilters, records, courses, expandAllBatches, collapseAllBatches } =
     useAppStore();
 
   const courseNames = [...new Set(courses.map((c) => c.courseName))];

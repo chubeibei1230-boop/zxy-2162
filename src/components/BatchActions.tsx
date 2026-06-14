@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { CheckSquare, Trash2, CheckCircle, XCircle, X } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import { ReviewStatus } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function BatchActions() {

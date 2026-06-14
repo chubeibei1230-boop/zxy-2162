@@ -3,7 +3,7 @@ import { Fragment } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import RecordRow from './RecordRow';
 import { cn } from '@/lib/utils';
-import { PackageRecord, CATEGORY_LABELS, HANDOVER_STATUS_LABELS, HandoverStatus } from '@/types';
+import { PackageRecord, HANDOVER_STATUS_LABELS } from '@/types';
 
 export default function RecordTable() {
   const {

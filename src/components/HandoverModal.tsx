@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X,
   ClipboardCheck,
@@ -37,7 +37,6 @@ export default function HandoverModal() {
     markHandoverException,
     addHandoverAnomaly,
     removeHandoverAnomaly,
-    getHandoverByBatchId,
     currentRole,
   } = useAppStore();
 
@@ -51,8 +50,6 @@ export default function HandoverModal() {
   const [anomalyType, setAnomalyType] = useState<HandoverItemAnomaly['anomalyType']>('missing');
   const [anomalyNote, setAnomalyNote] = useState('');
 
-  if (!showHandoverModal) return null;
-
   const selectedHandover = selectedBatchId
     ? handovers.find((h) => h.batchId === selectedBatchId)
     : null;
@@ -63,6 +60,24 @@ export default function HandoverModal() {
 
   const canCreate = currentRole === 'manager';
   const canSign = currentRole === 'manager' || currentRole === 'executor';
+
+  const isBatchReadyForHandover = (batchId: string) => {
+    const batchRecords = records.filter((r) => r.batchId === batchId);
+    return batchRecords.length > 0 && batchRecords.every((r) => r.reviewStatus !== 'pending');
+  };
+
+  useEffect(() => {
+    if (!showHandoverModal || !activeHandoverBatchId) return;
+
+    const handover = handovers.find((h) => h.batchId === activeHandoverBatchId);
+    setSelectedBatchId(activeHandoverBatchId);
+    if (handover) {
+      setView('detail');
+    } else {
+      setCreateBatchId(activeHandoverBatchId);
+      setView('list');
+    }
+  }, [activeHandoverBatchId, handovers, showHandoverModal]);
 
   const statusConfig: Record<
     HandoverStatus,
@@ -79,7 +94,8 @@ export default function HandoverModal() {
       alert('请选择批次并填写交接人');
       return;
     }
-    createHandover(createBatchId, createPerson.trim());
+    const created = createHandover(createBatchId, createPerson.trim());
+    if (!created) return;
     setSelectedBatchId(createBatchId);
     setView('detail');
     setCreatePerson('');
@@ -98,9 +114,6 @@ export default function HandoverModal() {
 
   const handleComplete = () => {
     if (!selectedHandover) return;
-    if (selectedHandover.anomalies.length > 0 && selectedHandover.signStatus !== 'exception') {
-      markHandoverException(selectedHandover.id, '存在异常资料项');
-    }
     completeHandoverSign(selectedHandover.id);
   };
 
@@ -148,6 +161,8 @@ export default function HandoverModal() {
   const batchRecords = selectedBatchId
     ? records.filter((r) => r.batchId === selectedBatchId)
     : [];
+
+  if (!showHandoverModal) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -203,8 +218,13 @@ export default function HandoverModal() {
                       >
                         <option value="">请选择课程批次</option>
                         {batchesWithoutHandover.map((c) => (
-                          <option key={c.id} value={c.id}>
+                          <option
+                            key={c.id}
+                            value={c.id}
+                            disabled={!isBatchReadyForHandover(c.id)}
+                          >
                             {c.courseName} - {c.batchNumber}
+                            {!isBatchReadyForHandover(c.id) ? '（待完成分装/复核）' : ''}
                           </option>
                         ))}
                       </select>
@@ -529,7 +549,7 @@ export default function HandoverModal() {
                 </div>
               )}
 
-              {selectedHandover.signStatus !== 'completed' && canSign && (
+              {selectedHandover.signStatus !== 'completed' && !selectedHandover.completedTime && canSign && (
                 <div className="border border-navy-100 rounded-xl p-4 space-y-4">
                   <h4 className="text-sm font-semibold text-navy-700">签收操作</h4>
 
@@ -554,7 +574,7 @@ export default function HandoverModal() {
                     </div>
                   )}
 
-                  {selectedHandover.signStatus === 'in_progress' && (
+                  {(selectedHandover.signStatus === 'in_progress' || selectedHandover.signStatus === 'exception') && (
                     <div className="space-y-4">
                       <div className="flex items-end gap-3">
                         <div className="flex-1">
@@ -692,10 +712,12 @@ export default function HandoverModal() {
                 </div>
               )}
 
-              {selectedHandover.signStatus === 'completed' && (
+              {(selectedHandover.signStatus === 'completed' || selectedHandover.completedTime) && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
                   <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                  <p className="font-medium text-emerald-700">签收已完成</p>
+                  <p className="font-medium text-emerald-700">
+                    {selectedHandover.signStatus === 'exception' ? '异常签收已确认' : '签收已完成'}
+                  </p>
                   <p className="text-xs text-emerald-600 mt-1">
                     完成时间：{formatDateTime(selectedHandover.completedTime)}
                   </p>

@@ -14,6 +14,52 @@ import {
 import { generateId } from '@/utils/helpers';
 import { mockCourses, mockTemplates, mockRecords, mockHandovers } from '@/data/mockData';
 
+const getHandoverStats = (
+  records: PackageRecord[],
+  batchId: string,
+  anomalies: HandoverItemAnomaly[] = []
+) => {
+  const batchRecords = records.filter((r) => r.batchId === batchId);
+  const missingIds = new Set(
+    batchRecords
+      .filter((r) => r.actualQuantity < r.packageQuantity)
+      .map((r) => r.id)
+  );
+
+  anomalies.forEach((a) => {
+    if (a.anomalyType === 'missing') {
+      missingIds.add(a.recordId);
+    }
+  });
+
+  return {
+    expectedCount: batchRecords.length,
+    actualCount: batchRecords.filter((r) => r.actualQuantity >= r.packageQuantity).length,
+    missingCount: missingIds.size,
+    replenishedCount: batchRecords.filter((r) => r.replenishmentNote.trim().length > 0).length,
+  };
+};
+
+const syncHandoversWithRecords = (
+  handovers: HandoverRecord[],
+  records: PackageRecord[]
+) =>
+  handovers.map((h) => {
+    const batchRecords = records.filter((r) => r.batchId === h.batchId);
+    const anomalies = h.anomalies
+      .map((a) => {
+        const record = batchRecords.find((r) => r.id === a.recordId);
+        return record ? { ...a, materialName: record.materialName } : null;
+      })
+      .filter((a): a is HandoverItemAnomaly => Boolean(a));
+
+    return {
+      ...h,
+      anomalies,
+      ...getHandoverStats(records, h.batchId, anomalies),
+    };
+  });
+
 interface AppState {
   courses: CourseBatch[];
   templates: MaterialTemplate[];
@@ -65,7 +111,7 @@ interface AppState {
   setEditingRecordId: (id: string | null) => void;
   setActiveHandoverBatchId: (id: string | null) => void;
 
-  createHandover: (batchId: string, handoverPerson: string) => void;
+  createHandover: (batchId: string, handoverPerson: string) => boolean;
   startHandoverSign: (handoverId: string, receiverPerson: string) => void;
   completeHandoverSign: (handoverId: string) => void;
   markHandoverException: (handoverId: string, exceptionNote: string) => void;
@@ -142,7 +188,17 @@ export const useAppStore = create<AppState>()(
             }
             return r;
           });
-          return { courses: updatedCourses, records: updatedRecords };
+          const updatedHandovers = state.handovers.map((h) => {
+            if (h.batchId !== id) return h;
+            const updatedCourse = updatedCourses.find((c) => c.id === id);
+            return {
+              ...h,
+              courseName: updatedCourse?.courseName || h.courseName,
+              batchNumber: updatedCourse?.batchNumber || h.batchNumber,
+              updatedAt: new Date().toISOString(),
+            };
+          });
+          return { courses: updatedCourses, records: updatedRecords, handovers: updatedHandovers };
         });
       },
 
@@ -150,6 +206,7 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           courses: state.courses.filter((c) => c.id !== id),
           records: state.records.filter((r) => r.batchId !== id),
+          handovers: state.handovers.filter((h) => h.batchId !== id),
         }));
       },
 
@@ -185,33 +242,49 @@ export const useAppStore = create<AppState>()(
           createdAt: now,
           updatedAt: now,
         };
-        set((state) => ({
-          records: [...state.records, newRecord],
-        }));
+        set((state) => {
+          const updatedRecords = [...state.records, newRecord];
+          return {
+            records: updatedRecords,
+            handovers: syncHandoversWithRecords(state.handovers, updatedRecords),
+          };
+        });
       },
 
       updateRecord: (id, record) => {
-        set((state) => ({
-          records: state.records.map((r) =>
+        set((state) => {
+          const updatedRecords = state.records.map((r) =>
             r.id === id
               ? { ...r, ...record, updatedAt: new Date().toISOString() }
               : r
-          ),
-        }));
+          );
+          return {
+            records: updatedRecords,
+            handovers: syncHandoversWithRecords(state.handovers, updatedRecords),
+          };
+        });
       },
 
       deleteRecord: (id) => {
-        set((state) => ({
-          records: state.records.filter((r) => r.id !== id),
-          selectedIds: state.selectedIds.filter((sid) => sid !== id),
-        }));
+        set((state) => {
+          const updatedRecords = state.records.filter((r) => r.id !== id);
+          return {
+            records: updatedRecords,
+            selectedIds: state.selectedIds.filter((sid) => sid !== id),
+            handovers: syncHandoversWithRecords(state.handovers, updatedRecords),
+          };
+        });
       },
 
       deleteRecords: (ids) => {
-        set((state) => ({
-          records: state.records.filter((r) => !ids.includes(r.id)),
-          selectedIds: state.selectedIds.filter((sid) => !ids.includes(sid)),
-        }));
+        set((state) => {
+          const updatedRecords = state.records.filter((r) => !ids.includes(r.id));
+          return {
+            records: updatedRecords,
+            selectedIds: state.selectedIds.filter((sid) => !ids.includes(sid)),
+            handovers: syncHandoversWithRecords(state.handovers, updatedRecords),
+          };
+        });
       },
 
       generateRecordsFromTemplate: (batchId) => {
@@ -259,16 +332,20 @@ export const useAppStore = create<AppState>()(
           : `成功生成 ${newTemplates.length} 条记录。`;
         alert(message);
 
-        set((state) => ({
-          records: [...state.records, ...newRecords],
-          expandedBatches: { ...state.expandedBatches, [batchId]: true },
-        }));
+        set((state) => {
+          const updatedRecords = [...state.records, ...newRecords];
+          return {
+            records: updatedRecords,
+            handovers: syncHandoversWithRecords(state.handovers, updatedRecords),
+            expandedBatches: { ...state.expandedBatches, [batchId]: true },
+          };
+        });
       },
 
       batchSetReviewStatus: (ids, status) => {
         const now = new Date().toISOString();
-        set((state) => ({
-          records: state.records.map((r) =>
+        set((state) => {
+          const updatedRecords = state.records.map((r) =>
             ids.includes(r.id)
               ? {
                   ...r,
@@ -277,8 +354,12 @@ export const useAppStore = create<AppState>()(
                   updatedAt: now,
                 }
               : r
-          ),
-        }));
+          );
+          return {
+            records: updatedRecords,
+            handovers: syncHandoversWithRecords(state.handovers, updatedRecords),
+          };
+        });
       },
 
       toggleBatchExpand: (batchId) => {
@@ -330,16 +411,25 @@ export const useAppStore = create<AppState>()(
       createHandover: (batchId, handoverPerson) => {
         const { courses, records, handovers } = get();
         const batch = courses.find((c) => c.id === batchId);
-        if (!batch) return;
+        if (!batch) return false;
 
         const existing = handovers.find((h) => h.batchId === batchId);
         if (existing) {
           alert('该批次已存在交接签收记录，不能重复创建。');
-          return;
+          return false;
         }
 
         const batchRecords = records.filter((r) => r.batchId === batchId);
+        if (batchRecords.length === 0) {
+          alert('该批次暂无分装记录，不能发起交接。');
+          return false;
+        }
+        if (batchRecords.some((r) => r.reviewStatus === 'pending')) {
+          alert('该批次存在待复核资料，请完成复核后再发起交接。');
+          return false;
+        }
         const now = new Date().toISOString();
+        const stats = getHandoverStats(records, batchId);
 
         const newHandover: HandoverRecord = {
           id: generateId(),
@@ -351,10 +441,7 @@ export const useAppStore = create<AppState>()(
           handoverTime: now,
           signStatus: 'pending',
           exceptionNote: '',
-          expectedCount: batchRecords.length,
-          actualCount: batchRecords.filter((r) => r.actualQuantity >= r.packageQuantity).length,
-          missingCount: batchRecords.filter((r) => r.actualQuantity < r.packageQuantity).length,
-          replenishedCount: batchRecords.filter((r) => r.replenishmentNote.trim().length > 0).length,
+          ...stats,
           anomalies: [],
           completedTime: '',
           createdAt: now,
@@ -366,6 +453,7 @@ export const useAppStore = create<AppState>()(
           showHandoverModal: true,
           activeHandoverBatchId: batchId,
         }));
+        return true;
       },
 
       startHandoverSign: (handoverId, receiverPerson) => {
@@ -390,7 +478,10 @@ export const useAppStore = create<AppState>()(
             h.id === handoverId
               ? {
                   ...h,
-                  signStatus: 'completed' as HandoverStatus,
+                  signStatus:
+                    h.missingCount > 0 || h.anomalies.length > 0 || h.exceptionNote.trim()
+                      ? ('exception' as HandoverStatus)
+                      : ('completed' as HandoverStatus),
                   completedTime: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 }
@@ -416,17 +507,16 @@ export const useAppStore = create<AppState>()(
 
       addHandoverAnomaly: (handoverId, anomaly) => {
         set((state) => ({
-          handovers: state.handovers.map((h) =>
-            h.id === handoverId
-              ? {
-                  ...h,
-                  anomalies: [...h.anomalies, anomaly],
-                  missingCount: h.missingCount + (anomaly.anomalyType === 'missing' ? 1 : 0),
-                  signStatus: 'exception' as HandoverStatus,
-                  updatedAt: new Date().toISOString(),
-                }
-              : h
-          ),
+          handovers: state.handovers.map((h) => {
+            if (h.id !== handoverId) return h;
+            const anomalies = [...h.anomalies, anomaly];
+            return {
+              ...h,
+              anomalies,
+              ...getHandoverStats(state.records, h.batchId, anomalies),
+              updatedAt: new Date().toISOString(),
+            };
+          }),
         }));
       },
 
@@ -434,12 +524,11 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           handovers: state.handovers.map((h) => {
             if (h.id !== handoverId) return h;
-            const removed = h.anomalies.find((a) => a.recordId === recordId);
             const updatedAnomalies = h.anomalies.filter((a) => a.recordId !== recordId);
             return {
               ...h,
               anomalies: updatedAnomalies,
-              missingCount: Math.max(0, h.missingCount - (removed?.anomalyType === 'missing' ? 1 : 0)),
+              ...getHandoverStats(state.records, h.batchId, updatedAnomalies),
               updatedAt: new Date().toISOString(),
             };
           }),
@@ -448,17 +537,18 @@ export const useAppStore = create<AppState>()(
 
       updateHandoverAnomaly: (handoverId, recordId, anomaly) => {
         set((state) => ({
-          handovers: state.handovers.map((h) =>
-            h.id !== handoverId
-              ? h
-              : {
-                  ...h,
-                  anomalies: h.anomalies.map((a) =>
-                    a.recordId === recordId ? { ...a, ...anomaly } : a
-                  ),
-                  updatedAt: new Date().toISOString(),
-                }
-          ),
+          handovers: state.handovers.map((h) => {
+            if (h.id !== handoverId) return h;
+            const anomalies = h.anomalies.map((a) =>
+              a.recordId === recordId ? { ...a, ...anomaly } : a
+            );
+            return {
+              ...h,
+              anomalies,
+              ...getHandoverStats(state.records, h.batchId, anomalies),
+              updatedAt: new Date().toISOString(),
+            };
+          }),
         }));
       },
 
