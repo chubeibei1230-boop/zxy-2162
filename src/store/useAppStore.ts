@@ -193,30 +193,49 @@ export const useAppStore = create<AppState>()(
       },
 
       generateRecordsFromTemplate: (batchId) => {
-        const { courses, templates } = get();
+        const { courses, templates, records } = get();
         const batch = courses.find((c) => c.id === batchId);
         if (!batch) return;
 
-        const newRecords: PackageRecord[] = templates.map((t) => {
-          const now = new Date().toISOString();
-          return {
-            id: generateId(),
-            materialName: t.materialName,
-            category: t.category,
-            packageQuantity: t.packageQuantity,
-            actualQuantity: 0,
-            batchId: batch.id,
-            courseName: batch.courseName,
-            batchNumber: batch.batchNumber,
-            responsiblePerson: '',
-            reviewStatus: 'pending',
-            hasDeficiency: false,
-            deficiencyNote: '',
-            replenishmentNote: '',
-            createdAt: now,
-            updatedAt: now,
-          };
-        });
+        const existingNames = new Set(
+          records
+            .filter((r) => r.batchId === batchId)
+            .map((r) => r.materialName)
+        );
+
+        const newTemplates = templates.filter(
+          (t) => !existingNames.has(t.materialName)
+        );
+
+        if (newTemplates.length === 0) {
+          alert('该批次下的资料已全部存在，无需重复生成。');
+          return;
+        }
+
+        const now = new Date().toISOString();
+        const newRecords: PackageRecord[] = newTemplates.map((t) => ({
+          id: generateId(),
+          materialName: t.materialName,
+          category: t.category,
+          packageQuantity: t.packageQuantity,
+          actualQuantity: 0,
+          batchId: batch.id,
+          courseName: batch.courseName,
+          batchNumber: batch.batchNumber,
+          responsiblePerson: '',
+          reviewStatus: 'pending',
+          hasDeficiency: false,
+          deficiencyNote: '',
+          replenishmentNote: '',
+          createdAt: now,
+          updatedAt: now,
+        }));
+
+        const skipped = templates.length - newTemplates.length;
+        const message = skipped > 0
+          ? `成功生成 ${newTemplates.length} 条新记录，跳过 ${skipped} 条已存在的记录。`
+          : `成功生成 ${newTemplates.length} 条记录。`;
+        alert(message);
 
         set((state) => ({
           records: [...state.records, ...newRecords],

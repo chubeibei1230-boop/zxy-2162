@@ -31,6 +31,15 @@ export default function RecordRow({ record }: RecordRowProps) {
   const canEdit = currentRole === 'manager' || currentRole === 'executor' || currentRole === 'reviewer';
   const canDelete = currentRole === 'manager';
 
+  const canEditMaterialInfo = currentRole === 'manager';
+  const canEditPackageQty = currentRole === 'manager';
+  const canEditActualQty = currentRole === 'manager' || currentRole === 'executor';
+  const canEditBatch = currentRole === 'manager';
+  const canEditPerson = currentRole === 'manager' || currentRole === 'executor';
+  const canEditReviewStatus = currentRole === 'manager' || currentRole === 'reviewer';
+  const canEditDeficiency = currentRole === 'manager' || currentRole === 'reviewer';
+  const canEditReplenishment = currentRole === 'manager' || currentRole === 'reviewer';
+
   const quantityIssue = issues.find((i) => i.field === 'actualQuantity');
   const deficiencyNoteIssue = issues.find((i) => i.field === 'deficiencyNote');
   const statusIssue = issues.find((i) => i.field === 'reviewStatus');
@@ -84,7 +93,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3 text-sm text-navy-900 font-medium">
-        {isEditing ? (
+        {isEditing && canEditMaterialInfo ? (
           <input
             type="text"
             value={editData.materialName}
@@ -97,7 +106,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3 text-sm text-navy-600">
-        {isEditing ? (
+        {isEditing && canEditMaterialInfo ? (
           <select
             value={editData.category}
             onChange={(e) => setEditData({ ...editData, category: e.target.value as MaterialCategory })}
@@ -115,7 +124,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3 text-sm text-navy-700 text-center">
-        {isEditing ? (
+        {isEditing && canEditPackageQty ? (
           <input
             type="number"
             min={0}
@@ -129,7 +138,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3 text-center">
-        {isEditing ? (
+        {isEditing && canEditActualQty ? (
           <input
             type="number"
             min={0}
@@ -156,7 +165,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3 text-sm text-navy-600">
-        {isEditing ? (
+        {isEditing && canEditBatch ? (
           <select
             value={editData.batchId}
             onChange={(e) => {
@@ -185,7 +194,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3">
-        {isEditing ? (
+        {isEditing && canEditPerson ? (
           <input
             type="text"
             value={editData.responsiblePerson}
@@ -208,7 +217,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3">
-        {isEditing ? (
+        {isEditing && canEditReviewStatus ? (
           <select
             value={editData.reviewStatus}
             onChange={(e) => {
@@ -245,7 +254,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3">
-        {isEditing ? (
+        {isEditing && canEditDeficiency ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <input
@@ -290,7 +299,7 @@ export default function RecordRow({ record }: RecordRowProps) {
       </td>
 
       <td className="px-3 py-3">
-        {isEditing ? (
+        {isEditing && canEditReplenishment ? (
           <textarea
             value={editData.replenishmentNote}
             onChange={(e) => setEditData({ ...editData, replenishmentNote: e.target.value })}
