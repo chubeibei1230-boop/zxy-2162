@@ -1,10 +1,10 @@
-import { X, Printer, Download, FileText, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { X, Printer, Download, FileText, CheckCircle, AlertTriangle, Clock, ClipboardCheck } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import { CATEGORY_LABELS, REVIEW_STATUS_LABELS } from '@/types';
-import { formatDate } from '@/utils/helpers';
+import { CATEGORY_LABELS, REVIEW_STATUS_LABELS, HANDOVER_STATUS_LABELS } from '@/types';
+import { formatDate, formatDateTime } from '@/utils/helpers';
 
 export default function PreviewModal() {
-  const { showPreview, setShowPreview, getFilteredRecords, getRecordsByBatch, courses } =
+  const { showPreview, setShowPreview, getFilteredRecords, getRecordsByBatch, courses, handovers } =
     useAppStore();
 
   const recordsByBatch = getRecordsByBatch();
@@ -19,6 +19,20 @@ export default function PreviewModal() {
   const reviewRate = allRecords.length > 0
     ? Math.round(((allRecords.length - pendingCount) / allRecords.length) * 100)
     : 0;
+
+  const completedBatches = batchIds.filter((bid) =>
+    handovers.some((h) => h.batchId === bid && h.signStatus === 'completed')
+  ).length;
+  const exceptionBatches = batchIds.filter((bid) =>
+    handovers.some((h) => h.batchId === bid && h.signStatus === 'exception')
+  ).length;
+  const pendingSignBatches = batchIds.filter((bid) => {
+    const h = handovers.find((hv) => hv.batchId === bid);
+    return h && (h.signStatus === 'pending' || h.signStatus === 'in_progress');
+  }).length;
+  const noHandoverBatches = batchIds.filter((bid) =>
+    !handovers.some((h) => h.batchId === bid)
+  ).length;
 
   const handlePrint = () => {
     window.print();
@@ -64,7 +78,7 @@ export default function PreviewModal() {
               </p>
             </div>
 
-            <div className="grid grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-6 gap-4 mb-8">
               <div className="bg-navy-50 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-navy-900">{allRecords.length}</div>
                 <div className="text-xs text-navy-500 mt-1">资料种类</div>
@@ -80,6 +94,14 @@ export default function PreviewModal() {
               <div className="bg-emerald-50 rounded-lg p-4 text-center">
                 <div className="text-2xl font-bold text-emerald-600">{reviewRate}%</div>
                 <div className="text-xs text-emerald-600 mt-1">已复核比例</div>
+              </div>
+              <div className="bg-emerald-50 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-emerald-700">{completedBatches}</div>
+                <div className="text-xs text-emerald-600 mt-1">已签收批次</div>
+              </div>
+              <div className="bg-amber-50 rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-amber-700">{exceptionBatches}</div>
+                <div className="text-xs text-amber-600 mt-1">异常批次</div>
               </div>
             </div>
 
@@ -97,6 +119,7 @@ export default function PreviewModal() {
                 const batchActual = records.reduce((sum, r) => sum + r.actualQuantity, 0);
                 const batchDeficient = records.filter((r) => r.hasDeficiency).length;
                 const batchPassed = records.filter((r) => r.reviewStatus === 'passed').length;
+                const handover = handovers.find((h) => h.batchId === batchId);
 
                 return (
                   <div key={batchId} className="break-inside-avoid">
@@ -121,8 +144,39 @@ export default function PreviewModal() {
                             缺漏 {batchDeficient}
                           </span>
                         )}
+                        {handover ? (
+                          <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                            handover.signStatus === 'completed'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : handover.signStatus === 'exception'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-navy-100 text-navy-600'
+                          }`}>
+                            {handover.signStatus === 'completed' && <CheckCircle className="w-3 h-3" />}
+                            {handover.signStatus === 'exception' && <AlertTriangle className="w-3 h-3" />}
+                            {(handover.signStatus === 'pending' || handover.signStatus === 'in_progress') && <Clock className="w-3 h-3" />}
+                            {HANDOVER_STATUS_LABELS[handover.signStatus]}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            未发起交接
+                          </span>
+                        )}
                       </div>
                     </div>
+
+                    {handover && (
+                      <div className="mb-3 p-3 bg-navy-50/50 rounded-lg text-xs text-navy-600 grid grid-cols-3 gap-3">
+                        <div>交接人：<span className="font-medium text-navy-900">{handover.handoverPerson}</span></div>
+                        <div>接收人：<span className="font-medium text-navy-900">{handover.receiverPerson || '待指定'}</span></div>
+                        <div>交接时间：<span className="font-medium text-navy-900">{handover.handoverTime ? formatDateTime(handover.handoverTime) : '待发起'}</span></div>
+                        {handover.exceptionNote && (
+                          <div className="col-span-3 text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                            异常说明：{handover.exceptionNote}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <table className="w-full text-sm">
                       <thead>

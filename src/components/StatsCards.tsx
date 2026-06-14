@@ -1,8 +1,8 @@
-import { FileText, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { FileText, AlertTriangle, CheckCircle, Clock, ClipboardCheck } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function StatsCards() {
-  const { getFilteredRecords } = useAppStore();
+  const { getFilteredRecords, handovers, courses } = useAppStore();
   const records = getFilteredRecords();
 
   const total = records.length;
@@ -10,6 +10,24 @@ export default function StatsCards() {
   const passedCount = records.filter((r) => r.reviewStatus === 'passed').length;
   const pendingCount = records.filter((r) => r.reviewStatus === 'pending').length;
   const reviewRate = total > 0 ? Math.round(((total - pendingCount) / total) * 100) : 0;
+
+  const batchIdsFromRecords = [...new Set(records.map((r) => r.batchId))];
+  const completedBatches = batchIdsFromRecords.filter((bid) =>
+    handovers.some((h) => h.batchId === bid && h.signStatus === 'completed')
+  ).length;
+  const exceptionBatches = batchIdsFromRecords.filter((bid) =>
+    handovers.some((h) => h.batchId === bid && h.signStatus === 'exception')
+  ).length;
+  const pendingSignBatches = batchIdsFromRecords.filter((bid) => {
+    const h = handovers.find((hv) => hv.batchId === bid);
+    return h && (h.signStatus === 'pending' || h.signStatus === 'in_progress');
+  }).length;
+  const noHandoverBatches = batchIdsFromRecords.filter((bid) =>
+    !handovers.some((h) => h.batchId === bid)
+  ).length;
+  const handoverRate = batchIdsFromRecords.length > 0
+    ? Math.round((completedBatches / batchIdsFromRecords.length) * 100)
+    : 0;
 
   const stats = [
     {
@@ -45,10 +63,28 @@ export default function StatsCards() {
       borderColor: 'border-navy-100',
       subtext: `${total - pendingCount} / ${total} 条`,
     },
+    {
+      label: '已签收批次',
+      value: completedBatches,
+      icon: ClipboardCheck,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-100',
+      subtext: `签收率 ${handoverRate}%`,
+    },
+    {
+      label: '异常批次',
+      value: exceptionBatches,
+      icon: AlertTriangle,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-amber-100',
+      subtext: pendingSignBatches > 0 ? `${pendingSignBatches} 批次待签收` : undefined,
+    },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
       {stats.map((stat, index) => (
         <div
           key={index}

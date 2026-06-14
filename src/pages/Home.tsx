@@ -6,6 +6,7 @@ import BatchActions from '@/components/BatchActions';
 import BatchModal from '@/components/BatchModal';
 import TemplateModal from '@/components/TemplateModal';
 import PreviewModal from '@/components/PreviewModal';
+import HandoverModal from '@/components/HandoverModal';
 
 export default function Home() {
   return (
@@ -22,6 +23,7 @@ export default function Home() {
       <BatchModal />
       <TemplateModal />
       <PreviewModal />
+      <HandoverModal />
     </div>
   );
 }

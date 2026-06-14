@@ -1,9 +1,9 @@
-import { ChevronDown, ChevronRight, Plus, Layers, FileText } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Layers, FileText, ClipboardCheck, CheckCircle, AlertTriangle, Clock, Play } from 'lucide-react';
 import { Fragment } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import RecordRow from './RecordRow';
 import { cn } from '@/lib/utils';
-import { PackageRecord, CATEGORY_LABELS } from '@/types';
+import { PackageRecord, CATEGORY_LABELS, HANDOVER_STATUS_LABELS, HandoverStatus } from '@/types';
 
 export default function RecordTable() {
   const {
@@ -18,6 +18,9 @@ export default function RecordTable() {
     selectAll,
     clearSelection,
     addRecord,
+    handovers,
+    setShowHandoverModal,
+    setActiveHandoverBatchId,
   } = useAppStore();
 
   const recordsByBatch = getRecordsByBatch();
@@ -59,6 +62,19 @@ export default function RecordTable() {
     const passed = records.filter((r) => r.reviewStatus === 'passed').length;
     const pending = records.filter((r) => r.reviewStatus === 'pending').length;
     return { total, deficient, passed, pending };
+  };
+
+  const handoverStatusConfig: Record<string, { icon: typeof CheckCircle; color: string; bg: string }> = {
+    pending: { icon: Clock, color: 'text-navy-500', bg: 'bg-navy-50' },
+    in_progress: { icon: Play, color: 'text-blue-600', bg: 'bg-blue-50' },
+    completed: { icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    exception: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
+  };
+
+  const handleOpenHandover = (batchId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveHandoverBatchId(batchId);
+    setShowHandoverModal(true);
   };
 
   if (batchIds.length === 0) {
@@ -140,6 +156,10 @@ export default function RecordTable() {
               const records = recordsByBatch[batchId];
               const isExpanded = expandedBatches[batchId] ?? true;
               const stats = getBatchStats(records);
+              const handover = handovers.find((h) => h.batchId === batchId);
+              const hStatus = handover?.signStatus;
+              const hConfig = hStatus ? handoverStatusConfig[hStatus] : null;
+              const HIcon = hConfig?.icon;
 
               return (
                 <Fragment key={batchId}>
@@ -165,6 +185,19 @@ export default function RecordTable() {
                               {batch?.batchNumber || '-'}
                             </span>
                           </div>
+                          {hStatus && HIcon && (
+                            <button
+                              onClick={(e) => handleOpenHandover(batchId, e)}
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full',
+                                hConfig?.bg,
+                                hConfig?.color
+                              )}
+                            >
+                              <HIcon className="w-3 h-3" />
+                              {HANDOVER_STATUS_LABELS[hStatus]}
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <span className="text-navy-600">
@@ -179,6 +212,15 @@ export default function RecordTable() {
                           <span className="text-navy-500">
                             待复核 <span className="font-medium">{stats.pending}</span>
                           </span>
+                          {!hStatus && currentRole === 'manager' && (
+                            <button
+                              onClick={(e) => handleOpenHandover(batchId, e)}
+                              className="ml-1 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary-600 bg-white border border-primary-200 rounded hover:bg-primary-50 transition-colors"
+                            >
+                              <ClipboardCheck className="w-3 h-3" />
+                              发起交接
+                            </button>
+                          )}
                           {currentRole === 'manager' && (
                             <button
                               onClick={(e) => {

@@ -7,14 +7,18 @@ import {
   Filters,
   UserRole,
   ReviewStatus,
+  HandoverRecord,
+  HandoverStatus,
+  HandoverItemAnomaly,
 } from '@/types';
 import { generateId } from '@/utils/helpers';
-import { mockCourses, mockTemplates, mockRecords } from '@/data/mockData';
+import { mockCourses, mockTemplates, mockRecords, mockHandovers } from '@/data/mockData';
 
 interface AppState {
   courses: CourseBatch[];
   templates: MaterialTemplate[];
   records: PackageRecord[];
+  handovers: HandoverRecord[];
   filters: Filters;
   currentRole: UserRole;
   expandedBatches: Record<string, boolean>;
@@ -22,7 +26,9 @@ interface AppState {
   showBatchModal: boolean;
   showTemplateModal: boolean;
   showPreview: boolean;
+  showHandoverModal: boolean;
   editingRecordId: string | null;
+  activeHandoverBatchId: string | null;
 
   setCurrentRole: (role: UserRole) => void;
   setFilters: (filters: Partial<Filters>) => void;
@@ -55,7 +61,19 @@ interface AppState {
   setShowBatchModal: (show: boolean) => void;
   setShowTemplateModal: (show: boolean) => void;
   setShowPreview: (show: boolean) => void;
+  setShowHandoverModal: (show: boolean) => void;
   setEditingRecordId: (id: string | null) => void;
+  setActiveHandoverBatchId: (id: string | null) => void;
+
+  createHandover: (batchId: string, handoverPerson: string) => void;
+  startHandoverSign: (handoverId: string, receiverPerson: string) => void;
+  completeHandoverSign: (handoverId: string) => void;
+  markHandoverException: (handoverId: string, exceptionNote: string) => void;
+  addHandoverAnomaly: (handoverId: string, anomaly: HandoverItemAnomaly) => void;
+  removeHandoverAnomaly: (handoverId: string, recordId: string) => void;
+  updateHandoverAnomaly: (handoverId: string, recordId: string, anomaly: Partial<HandoverItemAnomaly>) => void;
+  getHandoverByBatchId: (batchId: string) => HandoverRecord | undefined;
+  getBatchHandoverStatus: (batchId: string) => HandoverStatus | null;
 
   getFilteredRecords: () => PackageRecord[];
   getRecordsByBatch: () => Record<string, PackageRecord[]>;
@@ -67,6 +85,7 @@ const initialFilters: Filters = {
   reviewStatus: '',
   responsiblePerson: '',
   hasDeficiency: '',
+  handoverStatus: '',
 };
 
 export const useAppStore = create<AppState>()(
@@ -75,6 +94,7 @@ export const useAppStore = create<AppState>()(
       courses: mockCourses,
       templates: mockTemplates,
       records: mockRecords,
+      handovers: mockHandovers,
       filters: initialFilters,
       currentRole: 'manager',
       expandedBatches: {},
@@ -82,7 +102,9 @@ export const useAppStore = create<AppState>()(
       showBatchModal: false,
       showTemplateModal: false,
       showPreview: false,
+      showHandoverModal: false,
       editingRecordId: null,
+      activeHandoverBatchId: null,
 
       setCurrentRole: (role) => set({ currentRole: role }),
 
@@ -301,10 +323,156 @@ export const useAppStore = create<AppState>()(
       setShowBatchModal: (show) => set({ showBatchModal: show }),
       setShowTemplateModal: (show) => set({ showTemplateModal: show }),
       setShowPreview: (show) => set({ showPreview: show }),
+      setShowHandoverModal: (show) => set({ showHandoverModal: show }),
       setEditingRecordId: (id) => set({ editingRecordId: id }),
+      setActiveHandoverBatchId: (id) => set({ activeHandoverBatchId: id }),
+
+      createHandover: (batchId, handoverPerson) => {
+        const { courses, records, handovers } = get();
+        const batch = courses.find((c) => c.id === batchId);
+        if (!batch) return;
+
+        const existing = handovers.find((h) => h.batchId === batchId);
+        if (existing) {
+          alert('该批次已存在交接签收记录，不能重复创建。');
+          return;
+        }
+
+        const batchRecords = records.filter((r) => r.batchId === batchId);
+        const now = new Date().toISOString();
+
+        const newHandover: HandoverRecord = {
+          id: generateId(),
+          batchId,
+          courseName: batch.courseName,
+          batchNumber: batch.batchNumber,
+          handoverPerson,
+          receiverPerson: '',
+          handoverTime: now,
+          signStatus: 'pending',
+          exceptionNote: '',
+          expectedCount: batchRecords.length,
+          actualCount: batchRecords.filter((r) => r.actualQuantity >= r.packageQuantity).length,
+          missingCount: batchRecords.filter((r) => r.actualQuantity < r.packageQuantity).length,
+          replenishedCount: batchRecords.filter((r) => r.replenishmentNote.trim().length > 0).length,
+          anomalies: [],
+          completedTime: '',
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        set((state) => ({
+          handovers: [...state.handovers, newHandover],
+          showHandoverModal: true,
+          activeHandoverBatchId: batchId,
+        }));
+      },
+
+      startHandoverSign: (handoverId, receiverPerson) => {
+        set((state) => ({
+          handovers: state.handovers.map((h) =>
+            h.id === handoverId
+              ? {
+                  ...h,
+                  receiverPerson,
+                  handoverTime: new Date().toISOString(),
+                  signStatus: 'in_progress' as HandoverStatus,
+                  updatedAt: new Date().toISOString(),
+                }
+              : h
+          ),
+        }));
+      },
+
+      completeHandoverSign: (handoverId) => {
+        set((state) => ({
+          handovers: state.handovers.map((h) =>
+            h.id === handoverId
+              ? {
+                  ...h,
+                  signStatus: 'completed' as HandoverStatus,
+                  completedTime: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                }
+              : h
+          ),
+        }));
+      },
+
+      markHandoverException: (handoverId, exceptionNote) => {
+        set((state) => ({
+          handovers: state.handovers.map((h) =>
+            h.id === handoverId
+              ? {
+                  ...h,
+                  signStatus: 'exception' as HandoverStatus,
+                  exceptionNote,
+                  updatedAt: new Date().toISOString(),
+                }
+              : h
+          ),
+        }));
+      },
+
+      addHandoverAnomaly: (handoverId, anomaly) => {
+        set((state) => ({
+          handovers: state.handovers.map((h) =>
+            h.id === handoverId
+              ? {
+                  ...h,
+                  anomalies: [...h.anomalies, anomaly],
+                  missingCount: h.missingCount + (anomaly.anomalyType === 'missing' ? 1 : 0),
+                  signStatus: 'exception' as HandoverStatus,
+                  updatedAt: new Date().toISOString(),
+                }
+              : h
+          ),
+        }));
+      },
+
+      removeHandoverAnomaly: (handoverId, recordId) => {
+        set((state) => ({
+          handovers: state.handovers.map((h) => {
+            if (h.id !== handoverId) return h;
+            const removed = h.anomalies.find((a) => a.recordId === recordId);
+            const updatedAnomalies = h.anomalies.filter((a) => a.recordId !== recordId);
+            return {
+              ...h,
+              anomalies: updatedAnomalies,
+              missingCount: Math.max(0, h.missingCount - (removed?.anomalyType === 'missing' ? 1 : 0)),
+              updatedAt: new Date().toISOString(),
+            };
+          }),
+        }));
+      },
+
+      updateHandoverAnomaly: (handoverId, recordId, anomaly) => {
+        set((state) => ({
+          handovers: state.handovers.map((h) =>
+            h.id !== handoverId
+              ? h
+              : {
+                  ...h,
+                  anomalies: h.anomalies.map((a) =>
+                    a.recordId === recordId ? { ...a, ...anomaly } : a
+                  ),
+                  updatedAt: new Date().toISOString(),
+                }
+          ),
+        }));
+      },
+
+      getHandoverByBatchId: (batchId) => {
+        return get().handovers.find((h) => h.batchId === batchId);
+      },
+
+      getBatchHandoverStatus: (batchId) => {
+        const handover = get().handovers.find((h) => h.batchId === batchId);
+        return handover ? handover.signStatus : null;
+      },
 
       getFilteredRecords: () => {
-        const { records, filters } = get();
+        const { records, filters, handovers } = get();
         return records.filter((r) => {
           if (filters.courseName && r.courseName !== filters.courseName) {
             return false;
@@ -326,6 +494,13 @@ export const useAppStore = create<AppState>()(
           }
           if (filters.hasDeficiency === 'no' && r.hasDeficiency) {
             return false;
+          }
+          if (filters.handoverStatus) {
+            const handover = handovers.find((h) => h.batchId === r.batchId);
+            const batchStatus = handover ? handover.signStatus : 'none';
+            if (filters.handoverStatus !== batchStatus) {
+              return false;
+            }
           }
           return true;
         });
@@ -349,6 +524,7 @@ export const useAppStore = create<AppState>()(
         courses: state.courses,
         templates: state.templates,
         records: state.records,
+        handovers: state.handovers,
         filters: state.filters,
         currentRole: state.currentRole,
         expandedBatches: state.expandedBatches,

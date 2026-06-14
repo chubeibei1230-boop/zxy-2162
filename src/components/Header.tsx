@@ -1,10 +1,10 @@
-import { Package, LayoutGrid, FileText, Eye } from 'lucide-react';
+import { Package, LayoutGrid, FileText, Eye, ClipboardCheck } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { UserRole, ROLE_LABELS } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function Header() {
-  const { currentRole, setCurrentRole, setShowPreview, setShowBatchModal, setShowTemplateModal } =
+  const { currentRole, setCurrentRole, setShowPreview, setShowBatchModal, setShowTemplateModal, setShowHandoverModal } =
     useAppStore();
 
   const roles: UserRole[] = ['manager', 'executor', 'reviewer'];
@@ -19,7 +19,7 @@ export default function Header() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-navy-900">培训资料包管理</h1>
-              <p className="text-xs text-navy-500">分装记录 · 批次管理 · 缺漏确认</p>
+              <p className="text-xs text-navy-500">分装记录 · 批次管理 · 缺漏确认 · 交接签收</p>
             </div>
           </div>
 
@@ -60,6 +60,13 @@ export default function Header() {
                   </button>
                 </>
               )}
+              <button
+                onClick={() => setShowHandoverModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-navy-700 bg-navy-50 hover:bg-navy-100 rounded-lg transition-colors"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                交接签收
+              </button>
               <button
                 onClick={() => setShowPreview(true)}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors shadow-sm"

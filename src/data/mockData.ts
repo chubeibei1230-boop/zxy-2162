@@ -1,4 +1,4 @@
-import { CourseBatch, MaterialTemplate, PackageRecord } from '@/types';
+import { CourseBatch, MaterialTemplate, PackageRecord, HandoverRecord } from '@/types';
 
 export const mockCourses: CourseBatch[] = [
   {
@@ -242,5 +242,72 @@ export const mockRecords: PackageRecord[] = [
     replenishmentNote: '',
     createdAt: '2024-03-02T10:10:00Z',
     updatedAt: '2024-03-03T09:00:00Z',
+  },
+];
+
+export const mockHandovers: HandoverRecord[] = [
+  {
+    id: 'h1',
+    batchId: 'c1',
+    courseName: '新员工入职培训',
+    batchNumber: '2024-Q1-001',
+    handoverPerson: '张三',
+    receiverPerson: '李老师',
+    handoverTime: '2024-01-18T09:00:00Z',
+    signStatus: 'completed',
+    exceptionNote: '',
+    expectedCount: 6,
+    actualCount: 6,
+    missingCount: 0,
+    replenishedCount: 0,
+    anomalies: [],
+    completedTime: '2024-01-18T10:30:00Z',
+    createdAt: '2024-01-18T09:00:00Z',
+    updatedAt: '2024-01-18T10:30:00Z',
+  },
+  {
+    id: 'h2',
+    batchId: 'c2',
+    courseName: '新员工入职培训',
+    batchNumber: '2024-Q1-002',
+    handoverPerson: '张三',
+    receiverPerson: '',
+    handoverTime: '',
+    signStatus: 'pending',
+    exceptionNote: '',
+    expectedCount: 2,
+    actualCount: 2,
+    missingCount: 0,
+    replenishedCount: 0,
+    anomalies: [],
+    completedTime: '',
+    createdAt: '2024-02-22T09:00:00Z',
+    updatedAt: '2024-02-22T09:00:00Z',
+  },
+  {
+    id: 'h3',
+    batchId: 'c3',
+    courseName: '销售技能进阶',
+    batchNumber: '2024-SALES-001',
+    handoverPerson: '赵六',
+    receiverPerson: '王经理',
+    handoverTime: '2024-03-05T14:00:00Z',
+    signStatus: 'exception',
+    exceptionNote: '销售技巧手册缺2本，需补装后再确认签收',
+    expectedCount: 2,
+    actualCount: 1,
+    missingCount: 1,
+    replenishedCount: 0,
+    anomalies: [
+      {
+        recordId: 'r9',
+        materialName: '销售技巧手册',
+        anomalyType: 'missing',
+        note: '应发20本实发18本，差2本待补',
+      },
+    ],
+    completedTime: '',
+    createdAt: '2024-03-05T14:00:00Z',
+    updatedAt: '2024-03-05T16:00:00Z',
   },
 ];
